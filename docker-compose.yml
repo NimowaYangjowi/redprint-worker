@@ -1,0 +1,16 @@
+services:
+  transcode-worker:
+    build: .
+    container_name: redprint-transcode-worker
+    restart: always
+    env_file: .env.worker
+    volumes:
+      - transcode-tmp:/tmp/redprint-transcode
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 4G
+
+volumes:
+  transcode-tmp:

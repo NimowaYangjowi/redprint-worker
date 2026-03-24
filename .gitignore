@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env.worker
+.env.local
+.env
+*.log
+.DS_Store
+/tmp/
+.claude/
+menubar-app/
+tasks/
