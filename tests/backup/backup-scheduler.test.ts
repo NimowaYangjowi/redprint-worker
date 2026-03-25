@@ -14,6 +14,12 @@ vi.mock('../../src/lib/backup/retention', () => ({
   todayBackupExists: vi.fn(),
 }));
 
+vi.mock('../../src/lib/backup/backup-logger', () => ({
+  logBackupStart: vi.fn().mockResolvedValue('mock-log-id'),
+  logBackupSuccess: vi.fn().mockResolvedValue(undefined),
+  logBackupFailed: vi.fn().mockResolvedValue(undefined),
+}));
+
 import {
   startBackupScheduler,
   stopBackupScheduler,

@@ -20,6 +20,7 @@ import { isBackupEnabled, getBackupHourUTC, BACKUP_SHUTDOWN_TIMEOUT_MS } from '.
 import { runPgDump } from './pg-dump';
 import { uploadBackup } from './backup-uploader';
 import { applyRetention, todayBackupExists } from './retention';
+import { logBackupStart, logBackupSuccess, logBackupFailed } from './backup-logger';
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let backupInProgress = false;
@@ -138,6 +139,14 @@ async function executeBackup(): Promise<void> {
   const startTime = Date.now();
   console.log('[BACKUP] Starting backup...');
 
+  // Log start to DB (best-effort — don't block backup if logging fails)
+  let logId: string | null = null;
+  try {
+    logId = await logBackupStart();
+  } catch (logErr) {
+    console.error('[BACKUP] Failed to log backup start:', logErr);
+  }
+
   try {
     // Step 1: pg_dump → gzip → temp file
     console.log('[BACKUP] Running pg_dump...');
@@ -150,9 +159,13 @@ async function executeBackup(): Promise<void> {
     console.log(`[BACKUP] Uploaded: ${key} (${sizeMB} MB)`);
 
     // Step 3: Apply retention policy
+    let retentionKept: number | undefined;
+    let retentionDeleted: number | undefined;
     console.log('[BACKUP] Applying retention policy...');
     try {
       const retention = await applyRetention();
+      retentionKept = retention.kept;
+      retentionDeleted = retention.deleted;
       console.log(
         `[BACKUP] Retention: ${retention.deleted} deleted, ${retention.kept} kept`
       );
@@ -162,11 +175,30 @@ async function executeBackup(): Promise<void> {
       console.error(`[BACKUP] Retention failed (backup is safe): ${msg}`);
     }
 
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    const durationMs = Date.now() - startTime;
+    const elapsed = (durationMs / 1000).toFixed(1);
     console.log(`[BACKUP] Backup completed in ${elapsed}s`);
+
+    // Log success to DB
+    if (logId) {
+      try {
+        await logBackupSuccess(logId, { r2Key: key, fileSize: size, durationMs, retentionKept, retentionDeleted });
+      } catch (logErr) {
+        console.error('[BACKUP] Failed to log backup success:', logErr);
+      }
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[BACKUP] Backup failed: ${msg}`);
+
+    // Log failure to DB
+    if (logId) {
+      try {
+        await logBackupFailed(logId, msg, Date.now() - startTime);
+      } catch (logErr) {
+        console.error('[BACKUP] Failed to log backup failure:', logErr);
+      }
+    }
   } finally {
     backupInProgress = false;
 

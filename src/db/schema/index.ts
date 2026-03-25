@@ -79,6 +79,8 @@ export * from './api-response-cache';
 // Media Transcoding Pipeline
 export * from './media-transcode-jobs';
 export * from './media-variants';
+// Backup Logs (Backup Monitoring Dashboard)
+export * from './backup-logs';
 
 // Drizzle Relations (domain-split)
 export * from './relations';
