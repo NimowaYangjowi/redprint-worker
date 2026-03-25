@@ -1,6 +1,6 @@
-# Redprint Transcode Worker
+# Redprint Worker
 
-Standalone worker that processes video transcode jobs from the queue.
+Standalone worker that processes video transcode jobs and automated DB backups.
 
 ## Setup
 
@@ -14,7 +14,7 @@ docker compose up -d --build
 3. Check logs:
 
 ```bash
-docker logs -f redprint-transcode-worker
+docker logs -f redprint-worker
 ```
 
 4. Stop:
@@ -78,4 +78,3 @@ monitor-app/
 ```
 
 > `menubar-app/`은 이전 Electron 버전으로, `monitor-app/`(Tauri)으로 대체되었다.
-# redprint-worker

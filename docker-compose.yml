@@ -1,7 +1,7 @@
 services:
   transcode-worker:
     build: .
-    container_name: redprint-transcode-worker
+    container_name: redprint-worker
     restart: always
     env_file: .env.worker
     volumes:

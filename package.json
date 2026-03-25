@@ -1,5 +1,5 @@
 {
-  "name": "redprint-transcode-worker",
+  "name": "redprint-worker",
   "version": "1.0.0",
   "private": true,
   "type": "module",
