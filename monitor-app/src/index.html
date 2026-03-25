@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redprint Monitor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    font-size: 13px;
+    color: #1d1d1f;
+    background: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    overflow: hidden;
+  }
+
+  .card {
+    margin: 8px;
+    background: rgba(255, 255, 255, 0.82);
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.14);
+    overflow: hidden;
+  }
+
+  /* 헤더 */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid rgba(0,0,0,0.07);
+  }
+  .header-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d1d1f;
+    flex: 1;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .status-dot.running   { background: #34c759; box-shadow: 0 0 6px rgba(52,199,89,0.6); }
+  .status-dot.active    { background: #007aff; box-shadow: 0 0 6px rgba(0,122,255,0.6); }
+  .status-dot.stopped   { background: #8e8e93; }
+  .status-dot.error     { background: #ff3b30; box-shadow: 0 0 6px rgba(255,59,48,0.5); }
+  .status-label {
+    font-size: 12px;
+    color: #636366;
+  }
+
+  /* 섹션 */
+  .section {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #8e8e93;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .section-value {
+    font-size: 13px;
+    color: #1d1d1f;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .section-value.dim { color: #8e8e93; }
+
+  /* 통계 */
+  .stats {
+    display: flex;
+    gap: 0;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+  .stat {
+    flex: 1;
+    text-align: center;
+  }
+  .stat-num {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 2px;
+  }
+  .stat-num.green { color: #34c759; }
+  .stat-num.red   { color: #ff3b30; }
+  .stat-label {
+    font-size: 10px;
+    color: #8e8e93;
+  }
+  .stat-divider {
+    width: 1px;
+    background: rgba(0,0,0,0.07);
+    margin: 4px 0;
+  }
+
+  /* 버튼 영역 */
+  .actions {
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+  }
+  .btn {
+    flex: 1;
+    padding: 6px 0;
+    border: none;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn-start {
+    background: #34c759;
+    color: #fff;
+  }
+  .btn-stop {
+    background: #ff3b30;
+    color: #fff;
+  }
+  .btn-start:hover:not(:disabled) { background: #2db94d; }
+  .btn-stop:hover:not(:disabled)  { background: #e5352a; }
+
+  /* 백업 섹션 */
+  .backup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 14px 8px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    background: rgba(0,0,0,0.02);
+  }
+  .backup-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #636366;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .backup-latest {
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+  .backup-latest-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 2px;
+  }
+  .backup-latest-detail {
+    font-size: 11px;
+    color: #8e8e93;
+  }
+  .backup-stats {
+    display: flex;
+    gap: 0;
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+  .backup-stat {
+    flex: 1;
+    text-align: center;
+  }
+  .backup-stat-num {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 2px;
+    color: #1d1d1f;
+  }
+  .backup-stat-label {
+    font-size: 10px;
+    color: #8e8e93;
+  }
+  .backup-history {
+    padding: 6px 14px 8px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+  .backup-history-title {
+    font-size: 10px;
+    font-weight: 600;
+    color: #8e8e93;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .backup-history-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #636366;
+    padding: 2px 0;
+  }
+  .backup-history-row .status-dot {
+    width: 6px;
+    height: 6px;
+  }
+  .backup-disabled {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    font-size: 12px;
+    color: #c7c7cc;
+    text-align: center;
+  }
+
+  /* Git 섹션 */
+  .git-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 14px 8px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    background: rgba(0,0,0,0.02);
+  }
+  .git-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #636366;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .git-toggle {
+    position: relative;
+    width: 32px; height: 18px;
+  }
+  .git-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .git-toggle-slider {
+    position: absolute; inset: 0;
+    background: #c7c7cc;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .git-toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    left: 2px; top: 2px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  }
+  .git-toggle input:checked + .git-toggle-slider { background: #34c759; }
+  .git-toggle input:checked + .git-toggle-slider::before { transform: translateX(14px); }
+
+  .git-branch-row {
+    display: flex;
+    align-items: center;
+    padding: 6px 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    gap: 8px;
+  }
+  .git-branch-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #1d1d1f;
+    font-family: "SF Mono", Menlo, monospace;
+    min-width: 34px;
+  }
+  .git-branch-info {
+    flex: 1;
+    font-size: 11px;
+    color: #8e8e93;
+  }
+  .git-branch-info.ok   { color: #34c759; }
+  .git-branch-info.blue { color: #007aff; }
+  .git-branch-info.warn { color: #ff9500; }
+  .git-branch-info.err  { color: #ff3b30; }
+  .btn-pull {
+    font-size: 10px;
+    font-weight: 500;
+    color: #007aff;
+    background: rgba(0,122,255,0.1);
+    border: none;
+    border-radius: 5px;
+    padding: 3px 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  .btn-pull:hover { background: rgba(0,122,255,0.18); }
+  .btn-pull:active { transform: scale(0.94); }
+  .git-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 14px 7px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+  .git-checked {
+    font-size: 10px;
+    color: #c7c7cc;
+  }
+  .btn-pull-all {
+    font-size: 10px;
+    font-weight: 500;
+    color: #636366;
+    background: rgba(0,0,0,0.05);
+    border: none;
+    border-radius: 5px;
+    padding: 3px 8px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-pull-all:hover { background: rgba(0,0,0,0.09); }
+
+  /* 하단 */
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 14px 9px;
+  }
+  .last-updated {
+    font-size: 10px;
+    color: #c7c7cc;
+  }
+  .btn-quit {
+    font-size: 11px;
+    color: #8e8e93;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-family: inherit;
+  }
+  .btn-quit:hover { background: rgba(0,0,0,0.06); }
+
+  /* 액션 피드백 */
+  .toast {
+    position: fixed;
+    bottom: 12px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.75);
+    color: #fff;
+    font-size: 11px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="card">
+  <!-- 헤더: 상태 -->
+  <div class="header">
+    <div class="status-dot" id="dot"></div>
+    <span class="header-title">Redprint Worker</span>
+    <span class="status-label" id="statusLabel">로딩 중...</span>
+  </div>
+
+  <!-- 현재 잡 -->
+  <div class="section">
+    <div class="section-label">현재 잡</div>
+    <div class="section-value dim" id="currentJob">없음</div>
+  </div>
+
+  <!-- 오늘 통계 -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-num green" id="completedCount">—</div>
+      <div class="stat-label">오늘 완료</div>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat">
+      <div class="stat-num red" id="failedCount">—</div>
+      <div class="stat-label">오늘 실패</div>
+    </div>
+  </div>
+
+  <!-- 시작/중지 버튼 -->
+  <div class="actions">
+    <button class="btn btn-start" id="btnStart" onclick="startWorker()">▶ 시작</button>
+    <button class="btn btn-stop"  id="btnStop"  onclick="stopWorker()">⏹ 중지</button>
+  </div>
+
+  <!-- DB 백업 -->
+  <div class="backup-header">
+    <span class="backup-title">DB 백업</span>
+    <span class="status-label" id="backupStatusLabel">—</span>
+  </div>
+  <div id="backupContent">
+    <div class="backup-disabled" id="backupDisabled">백업 비활성화됨</div>
+  </div>
+  <div id="backupActive" style="display:none;">
+    <div class="backup-latest" id="backupLatest">
+      <div class="backup-latest-row">
+        <div class="status-dot" id="backupDot"></div>
+        <span class="section-value" id="backupLatestText">데이터 없음</span>
+      </div>
+      <div class="backup-latest-detail" id="backupLatestDetail"></div>
+    </div>
+    <div class="backup-stats">
+      <div class="backup-stat">
+        <div class="backup-stat-num" id="backupKeptCount">—</div>
+        <div class="backup-stat-label">보관 중</div>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="backup-stat">
+        <div class="backup-stat-num" id="backupNextText">—</div>
+        <div class="backup-stat-label">다음 백업</div>
+      </div>
+    </div>
+    <div class="backup-history">
+      <div class="backup-history-title">히스토리</div>
+      <div id="backupHistoryList"></div>
+    </div>
+  </div>
+
+  <!-- Git Auto-Pull -->
+  <div class="git-header">
+    <span class="git-title" id="gitTitle">Git Auto-Pull · Redprint</span>
+    <label class="git-toggle">
+      <input type="checkbox" id="gitToggle" checked onchange="toggleGit(this.checked)">
+      <span class="git-toggle-slider"></span>
+    </label>
+  </div>
+  <div class="git-branch-row">
+    <span class="git-branch-name">dev</span>
+    <span class="git-branch-info" id="gitDevInfo">확인 중...</span>
+    <button class="btn-pull" onclick="pullBranch('dev')">Pull</button>
+  </div>
+  <div class="git-branch-row">
+    <span class="git-branch-name">main</span>
+    <span class="git-branch-info" id="gitMainInfo">확인 중...</span>
+    <button class="btn-pull" onclick="pullBranch('main')">Pull</button>
+  </div>
+  <div class="git-footer">
+    <span class="git-checked" id="gitLastChecked">마지막 확인: —</span>
+    <button class="btn-pull-all" onclick="pullBranch(null)">전체 Pull</button>
+  </div>
+
+  <!-- 하단 -->
+  <div class="footer">
+    <span class="last-updated" id="lastUpdated">—</span>
+    <button class="btn-quit" onclick="invoke('quit_app')">앱 종료</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const { invoke } = window.__TAURI__.core;
+  const { listen } = window.__TAURI__.event;
+
+  function applyStatus(s) {
+    const dot = document.getElementById('dot');
+    const label = document.getElementById('statusLabel');
+    const jobEl = document.getElementById('currentJob');
+    const completed = document.getElementById('completedCount');
+    const failed = document.getElementById('failedCount');
+    const btnStart = document.getElementById('btnStart');
+    const btnStop = document.getElementById('btnStop');
+    const lastUpdated = document.getElementById('lastUpdated');
+
+    const state = s.container_state;
+    const isRunning = state === 'running';
+    const hasJob = !!s.current_job;
+
+    // 상태 점 및 레이블
+    dot.className = 'status-dot';
+    if (state === 'running' && hasJob) {
+      dot.classList.add('active');
+      label.textContent = '처리 중';
+    } else if (state === 'running') {
+      dot.classList.add('running');
+      label.textContent = '실행 중';
+    } else if (state === 'not_found' || state === 'unknown') {
+      dot.classList.add('error');
+      label.textContent = '찾을 수 없음';
+    } else {
+      dot.classList.add('stopped');
+      label.textContent = state === 'exited' ? '중지됨' : state;
+    }
+
+    // 현재 잡
+    if (hasJob) {
+      const job = s.current_job;
+      const type = (job.job_type || '').replace('_', ' ').toUpperCase();
+      const mediaId = (job.media_id || '').slice(0, 12);
+      jobEl.textContent = `${type} · ${mediaId}…`;
+      jobEl.classList.remove('dim');
+    } else {
+      jobEl.textContent = '없음';
+      jobEl.classList.add('dim');
+    }
+
+    // 통계
+    completed.textContent = s.db_connected ? s.today_completed : '—';
+    failed.textContent = s.db_connected ? s.today_failed : '—';
+
+    // 버튼 상태
+    btnStart.disabled = isRunning;
+    btnStop.disabled = !isRunning;
+
+    // 백업 상태
+    applyBackupStatus(s.backup);
+
+    // 마지막 업데이트
+    if (s.last_updated) {
+      const d = new Date(s.last_updated);
+      lastUpdated.textContent = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  async function startWorker() {
+    document.getElementById('btnStart').disabled = true;
+    showToast('시작 중...');
+    const res = await invoke('start_worker');
+    if (!res.ok) showToast('오류: ' + res.error);
+    else showToast('워커를 시작했습니다');
+  }
+
+  async function stopWorker() {
+    document.getElementById('btnStop').disabled = true;
+    showToast('중지 중...');
+    const res = await invoke('stop_worker');
+    if (!res.ok) showToast('오류: ' + res.error);
+    else showToast('워커를 중지했습니다');
+  }
+
+  // ── Backup Status ───────────────────────────────────────────
+  function applyBackupStatus(backup) {
+    const disabled = document.getElementById('backupDisabled');
+    const active = document.getElementById('backupActive');
+    const label = document.getElementById('backupStatusLabel');
+
+    if (!backup) {
+      // DB 연결 안 됨 또는 backup_logs 테이블 없음
+      disabled.textContent = '백업 비활성화됨';
+      disabled.style.display = '';
+      active.style.display = 'none';
+      label.textContent = '—';
+      return;
+    }
+
+    if (!backup.latest && backup.total_backups === 0 && backup.history.length === 0) {
+      // 테이블 있지만 아직 백업 실행 전
+      disabled.textContent = '첫 백업 대기 중...';
+      disabled.style.display = '';
+      active.style.display = 'none';
+      label.textContent = '대기';
+      return;
+    }
+
+    disabled.style.display = 'none';
+    active.style.display = '';
+
+    // Latest backup
+    const dot = document.getElementById('backupDot');
+    const text = document.getElementById('backupLatestText');
+    const detail = document.getElementById('backupLatestDetail');
+
+    if (backup.latest) {
+      const b = backup.latest;
+      const isSuccess = b.status === 'success';
+      const isRunning = b.status === 'running';
+
+      dot.className = 'status-dot';
+      if (isRunning) {
+        dot.classList.add('active');
+        label.textContent = '실행 중';
+      } else if (isSuccess) {
+        dot.classList.add('running');
+        label.textContent = '정상';
+      } else {
+        dot.classList.add('error');
+        label.textContent = '실패';
+      }
+
+      const d = new Date(b.started_at);
+      const dateStr = `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+
+      if (isRunning) {
+        text.textContent = `${dateStr} — 백업 중...`;
+        detail.textContent = '';
+      } else if (isSuccess) {
+        text.textContent = `마지막: ${dateStr}`;
+        const sizeMB = b.file_size ? (b.file_size / 1024 / 1024).toFixed(1) + ' MB' : '—';
+        const dur = b.duration_ms ? (b.duration_ms / 1000).toFixed(1) + '초' : '—';
+        detail.textContent = `${sizeMB} · ${dur}`;
+      } else {
+        text.textContent = `마지막: ${dateStr} — 실패`;
+        detail.textContent = b.error_message ? b.error_message.slice(0, 60) : '';
+      }
+    } else {
+      dot.className = 'status-dot stopped';
+      text.textContent = '데이터 없음';
+      detail.textContent = '';
+      label.textContent = '—';
+    }
+
+    // Stats
+    document.getElementById('backupKeptCount').textContent = backup.total_backups;
+
+    // History
+    const list = document.getElementById('backupHistoryList');
+    list.innerHTML = '';
+    for (const h of backup.history) {
+      const row = document.createElement('div');
+      row.className = 'backup-history-row';
+      const d = new Date(h.started_at);
+      const dateStr = `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const isOk = h.status === 'success';
+      const dotCls = h.status === 'running' ? 'active' : (isOk ? 'running' : 'error');
+      const sizeMB = h.file_size ? (h.file_size / 1024 / 1024).toFixed(1) + 'MB' : '—';
+      const dur = h.duration_ms ? (h.duration_ms / 1000).toFixed(1) + 's' : '—';
+      const info = isOk ? `${sizeMB}  ${dur}` : (h.status === 'running' ? '진행 중...' : '실패');
+      row.innerHTML = `<div class="status-dot ${dotCls}"></div><span>${dateStr}</span><span style="flex:1;text-align:right;">${info}</span>`;
+      list.appendChild(row);
+    }
+  }
+
+  // ── Git Auto-Pull ────────────────────────────────────────────
+  const GIT_STATE_LABEL = {
+    'unknown':    { text: '확인 중...', cls: '' },
+    'up-to-date': { text: '최신 상태',  cls: 'ok' },
+    'pulled':     { text: '방금 Pull됨', cls: 'blue' },
+    'diverged':   { text: '충돌 (수동 필요)', cls: 'warn' },
+    'error':      { text: '오류',       cls: 'err' },
+  };
+
+  function applyGitStatus(g) {
+    const titleEl = document.getElementById('gitTitle');
+    if (titleEl) {
+      titleEl.textContent = `Git Auto-Pull · ${g.repo_label || 'Redprint'}`;
+      titleEl.title = g.repo_path || '';
+    }
+
+    const toggle = document.getElementById('gitToggle');
+    if (toggle) toggle.checked = g.enabled;
+
+    for (const branch of ['dev', 'main']) {
+      const el = document.getElementById(`git${branch.charAt(0).toUpperCase() + branch.slice(1)}Info`);
+      if (!el) continue;
+      const b = g.branches?.[branch] || {};
+      const { text, cls } = GIT_STATE_LABEL[b.state] || GIT_STATE_LABEL['unknown'];
+      let display = text;
+      if (b.last_pull) {
+        const d = new Date(b.last_pull);
+        display += ` · ${d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`;
+      }
+      el.textContent = display;
+      el.className = `git-branch-info${cls ? ' ' + cls : ''}`;
+    }
+
+    const checkedEl = document.getElementById('gitLastChecked');
+    if (checkedEl) {
+      let checkedText = '마지막 확인: —';
+      if (g.last_checked) {
+        const d = new Date(g.last_checked);
+        checkedText = `마지막 확인: ${d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+      }
+      if (g.last_error) checkedText += ' · 오류';
+      checkedEl.textContent = checkedText;
+      checkedEl.title = g.last_error || '';
+    }
+  }
+
+  async function toggleGit(enabled) {
+    await invoke('toggle_git_pull', { enabled });
+    showToast(enabled ? 'Auto-Pull 켜짐' : 'Auto-Pull 꺼짐');
+  }
+
+  async function pullBranch(branch) {
+    showToast(branch ? `${branch} Pull 중...` : '전체 Pull 중...');
+    const res = await invoke('pull_now', { branch });
+    if (res.ok) {
+      if (res.skipped?.length) {
+        showToast(`수동 필요: ${res.skipped.join(', ')}`);
+      } else if (res.pulled?.length) {
+        showToast(branch ? `${branch} Pull 완료` : '전체 Pull 완료');
+      } else {
+        showToast(branch ? `${branch} 이미 최신` : '이미 최신 상태');
+      }
+      invoke('get_git_status').then(applyGitStatus);
+    } else {
+      showToast('오류: ' + (res.error || '').slice(0, 40));
+    }
+  }
+
+  // 초기 상태 로드
+  invoke('get_status').then(applyStatus);
+  invoke('get_git_status').then(applyGitStatus);
+
+  // 주기적 업데이트 수신
+  (async () => {
+    await listen('status-update', (e) => applyStatus(e.payload));
+    await listen('git-status-update', (e) => applyGitStatus(e.payload));
+  })();
+</script>
+</body>
+</html>
