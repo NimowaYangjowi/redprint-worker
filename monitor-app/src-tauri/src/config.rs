@@ -3,6 +3,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub const EXEC_PATH: &str = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+const CONFIG_DIR_NAMES: [&str; 2] = [
+    "com.redprint.redprint-monitor",
+    "com.transcode-monitor",
+];
 
 #[derive(Clone, Debug)]
 pub struct AppConfig {
@@ -55,19 +59,21 @@ impl AppConfig {
 }
 
 /// Read config.json from the platform-specific app config directory.
-/// Returns an empty JSON object on any failure.
+/// Prefer the current app identifier directory and fall back to the legacy
+/// location so existing operator config keeps working after the rename.
 fn read_config_json() -> serde_json::Value {
-    // On macOS: ~/Library/Application Support/com.transcode-monitor/config.json
-    let config_dir = dirs::config_dir()
-        .map(|d| d.join("com.transcode-monitor"))
-        .unwrap_or_else(|| PathBuf::from("/tmp"));
+    let Some(base_config_dir) = dirs::config_dir() else {
+        return serde_json::json!({});
+    };
 
-    let cfg_path = config_dir.join("config.json");
-
-    match fs::read_to_string(&cfg_path) {
-        Ok(contents) => serde_json::from_str(&contents).unwrap_or(serde_json::json!({})),
-        Err(_) => serde_json::json!({}),
+    for dir_name in CONFIG_DIR_NAMES {
+        let cfg_path = base_config_dir.join(dir_name).join("config.json");
+        if let Ok(contents) = fs::read_to_string(&cfg_path) {
+            return serde_json::from_str(&contents).unwrap_or(serde_json::json!({}));
+        }
     }
+
+    serde_json::json!({})
 }
 
 /// Resolve the git project directory using the monitor app's compatibility lookup:
