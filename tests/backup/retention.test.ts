@@ -39,7 +39,7 @@ describe('retention', () => {
       oldDate.setDate(oldDate.getDate() - 30);
 
       mockListR2Files.mockResolvedValue([
-        { key: 'backups/redprint-db-old.sql.gz', size: 1000, lastModified: oldDate },
+        { key: 'backups/v2/redprint-db-old.sql.gz', size: 1000, lastModified: oldDate },
       ]);
 
       const result = await applyRetention();
@@ -55,17 +55,17 @@ describe('retention', () => {
       const veryOld = new Date(now.getTime() - 15 * 86_400_000); // 15 days ago
 
       mockListR2Files.mockResolvedValue([
-        { key: 'backups/recent.sql.gz', size: 1000, lastModified: recent },
-        { key: 'backups/old.sql.gz', size: 1000, lastModified: old },
-        { key: 'backups/very-old.sql.gz', size: 1000, lastModified: veryOld },
+        { key: 'backups/v2/recent.sql.gz', size: 1000, lastModified: recent },
+        { key: 'backups/v2/old.sql.gz', size: 1000, lastModified: old },
+        { key: 'backups/v2/very-old.sql.gz', size: 1000, lastModified: veryOld },
       ]);
       mockDeleteMultiple.mockResolvedValue({ deleted: 2, errors: 0 });
 
       const result = await applyRetention();
 
       expect(mockDeleteMultiple).toHaveBeenCalledWith([
-        'backups/very-old.sql.gz',
-        'backups/old.sql.gz',
+        'backups/v2/very-old.sql.gz',
+        'backups/v2/old.sql.gz',
       ]);
       expect(result.deleted).toBe(2);
       expect(result.kept).toBe(1);
@@ -78,9 +78,9 @@ describe('retention', () => {
       const day5 = new Date(now.getTime() - 5 * 86_400_000);
 
       mockListR2Files.mockResolvedValue([
-        { key: 'backups/day1.sql.gz', size: 1000, lastModified: day1 },
-        { key: 'backups/day3.sql.gz', size: 1000, lastModified: day3 },
-        { key: 'backups/day5.sql.gz', size: 1000, lastModified: day5 },
+        { key: 'backups/v2/day1.sql.gz', size: 1000, lastModified: day1 },
+        { key: 'backups/v2/day3.sql.gz', size: 1000, lastModified: day3 },
+        { key: 'backups/v2/day5.sql.gz', size: 1000, lastModified: day5 },
       ]);
 
       const result = await applyRetention();
@@ -95,15 +95,15 @@ describe('retention', () => {
       const old2 = new Date(now.getTime() - 20 * 86_400_000);
 
       mockListR2Files.mockResolvedValue([
-        { key: 'backups/old1.sql.gz', size: 1000, lastModified: old1 },
-        { key: 'backups/old2.sql.gz', size: 1000, lastModified: old2 },
+        { key: 'backups/v2/old1.sql.gz', size: 1000, lastModified: old1 },
+        { key: 'backups/v2/old2.sql.gz', size: 1000, lastModified: old2 },
       ]);
       mockDeleteMultiple.mockResolvedValue({ deleted: 1, errors: 0 });
 
       const result = await applyRetention();
 
       // Should only delete 1, keeping the newest as the minimum
-      expect(mockDeleteMultiple).toHaveBeenCalledWith(['backups/old2.sql.gz']);
+      expect(mockDeleteMultiple).toHaveBeenCalledWith(['backups/v2/old2.sql.gz']);
       expect(result.kept).toBe(1);
     });
   });
@@ -111,7 +111,7 @@ describe('retention', () => {
   describe('todayBackupExists', () => {
     it('returns true when today backup exists', async () => {
       mockListR2Files.mockResolvedValue([
-        { key: 'backups/redprint-db-today.sql.gz', size: 1000, lastModified: new Date() },
+        { key: 'backups/v2/redprint-db-today.sql.gz', size: 1000, lastModified: new Date() },
       ]);
 
       const result = await todayBackupExists();
@@ -119,7 +119,7 @@ describe('retention', () => {
       expect(result).toBe(true);
       // Verify it searches with today's date prefix
       expect(mockListR2Files).toHaveBeenCalledWith(
-        expect.stringContaining('backups/redprint-db-')
+        expect.stringContaining('backups/v2/redprint-db-')
       );
     });
 

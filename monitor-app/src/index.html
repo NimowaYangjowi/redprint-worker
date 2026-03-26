@@ -550,6 +550,55 @@
   }
 
   // ── Backup Status ───────────────────────────────────────────
+  function formatBackupDate(value) {
+    const d = new Date(value);
+    return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+
+  // What the operator sees in the menu bar should match the real backup story:
+  // still building, uploaded and verifying, verified, legacy, or failed.
+  function getBackupState(entry) {
+    if (!entry) return 'none';
+
+    const hasRemoteObject = Boolean(entry.r2_key);
+    const verificationStatus = entry.verification_status ?? null;
+
+    if (entry.status === 'running') {
+      return hasRemoteObject && verificationStatus === 'pending' ? 'verifying' : 'running';
+    }
+
+    if (entry.status === 'success') {
+      return verificationStatus === 'passed' ? 'verified' : 'legacy';
+    }
+
+    if (entry.status === 'failed') {
+      return verificationStatus === 'failed' ? 'failed-verification' : 'failed';
+    }
+
+    return 'unknown';
+  }
+
+  function getBackupPresentation(entry) {
+    const state = getBackupState(entry);
+
+    switch (state) {
+      case 'running':
+        return { dot: 'active', label: '실행 중', history: '실행 중...' };
+      case 'verifying':
+        return { dot: 'active', label: '검증 중', history: '검증 중...' };
+      case 'verified':
+        return { dot: 'running', label: '정상', history: '검증 완료' };
+      case 'legacy':
+        return { dot: 'stopped', label: '레거시', history: '이전 방식' };
+      case 'failed-verification':
+        return { dot: 'error', label: '실패', history: '검증 실패' };
+      case 'failed':
+        return { dot: 'error', label: '실패', history: '실패' };
+      default:
+        return { dot: 'stopped', label: '알 수 없음', history: '알 수 없음' };
+    }
+  }
+
   function applyBackupStatus(backup) {
     const disabled = document.getElementById('backupDisabled');
     const active = document.getElementById('backupActive');
@@ -583,35 +632,37 @@
 
     if (backup.latest) {
       const b = backup.latest;
-      const isSuccess = b.status === 'success';
-      const isRunning = b.status === 'running';
+      const state = getBackupState(b);
+      const presentation = getBackupPresentation(b);
+      const dateStr = formatBackupDate(b.started_at);
+      const sizeMB = b.file_size ? (b.file_size / 1024 / 1024).toFixed(1) + ' MB' : '—';
+      const dur = b.duration_ms ? (b.duration_ms / 1000).toFixed(1) + '초' : '—';
+      const latestVerified = backup.latest_verified;
+      const latestVerifiedDate = latestVerified ? formatBackupDate(latestVerified.started_at) : null;
+      const latestIsVerified = latestVerified && latestVerified.started_at === b.started_at;
 
       dot.className = 'status-dot';
-      if (isRunning) {
-        dot.classList.add('active');
-        label.textContent = '실행 중';
-      } else if (isSuccess) {
-        dot.classList.add('running');
-        label.textContent = '정상';
-      } else {
-        dot.classList.add('error');
-        label.textContent = '실패';
-      }
+      dot.classList.add(presentation.dot);
+      label.textContent = presentation.label;
 
-      const d = new Date(b.started_at);
-      const dateStr = `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-
-      if (isRunning) {
-        text.textContent = `${dateStr} — 백업 중...`;
+      if (state === 'running') {
+        text.textContent = `${dateStr} — 백업 파일 생성 중...`;
         detail.textContent = '';
-      } else if (isSuccess) {
-        text.textContent = `마지막: ${dateStr}`;
-        const sizeMB = b.file_size ? (b.file_size / 1024 / 1024).toFixed(1) + ' MB' : '—';
-        const dur = b.duration_ms ? (b.duration_ms / 1000).toFixed(1) + '초' : '—';
+      } else if (state === 'verifying') {
+        text.textContent = `${dateStr} — 업로드 완료, 복원 검증 중...`;
+        detail.textContent = latestVerifiedDate ? `마지막 검증 성공: ${latestVerifiedDate}` : '아직 검증 완료된 백업 없음';
+      } else if (state === 'verified') {
+        text.textContent = `마지막 검증 성공: ${dateStr}`;
         detail.textContent = `${sizeMB} · ${dur}`;
+      } else if (state === 'legacy') {
+        text.textContent = `마지막: ${dateStr} — 이전 방식 백업`;
+        detail.textContent = latestVerifiedDate ? `복원 미검증 · 마지막 검증 성공: ${latestVerifiedDate}` : '복원 검증 전 백업';
       } else {
-        text.textContent = `마지막: ${dateStr} — 실패`;
-        detail.textContent = b.error_message ? b.error_message.slice(0, 60) : '';
+        text.textContent = `마지막: ${dateStr} — ${presentation.history}`;
+        const failureDetail = b.error_message ? b.error_message.slice(0, 60) : presentation.history;
+        detail.textContent = latestVerifiedDate && !latestIsVerified
+          ? `${failureDetail} · 마지막 검증 성공: ${latestVerifiedDate}`
+          : failureDetail;
       }
     } else {
       dot.className = 'status-dot stopped';
@@ -629,13 +680,15 @@
     for (const h of backup.history) {
       const row = document.createElement('div');
       row.className = 'backup-history-row';
-      const d = new Date(h.started_at);
-      const dateStr = `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      const isOk = h.status === 'success';
-      const dotCls = h.status === 'running' ? 'active' : (isOk ? 'running' : 'error');
+      const dateStr = formatBackupDate(h.started_at).slice(0, 5);
+      const state = getBackupState(h);
+      const presentation = getBackupPresentation(h);
+      const dotCls = presentation.dot;
       const sizeMB = h.file_size ? (h.file_size / 1024 / 1024).toFixed(1) + 'MB' : '—';
       const dur = h.duration_ms ? (h.duration_ms / 1000).toFixed(1) + 's' : '—';
-      const info = isOk ? `${sizeMB}  ${dur}` : (h.status === 'running' ? '진행 중...' : '실패');
+      let info = presentation.history;
+      if (state === 'verified') info = `${sizeMB}  ${dur} · ${presentation.history}`;
+      if (state === 'legacy') info = `${sizeMB}  ${dur} · ${presentation.history}`;
       row.innerHTML = `<div class="status-dot ${dotCls}"></div><span>${dateStr}</span><span style="flex:1;text-align:right;">${info}</span>`;
       list.appendChild(row);
     }

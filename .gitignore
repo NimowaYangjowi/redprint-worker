@@ -9,3 +9,9 @@ dist/
 .claude/
 menubar-app/
 tasks/
+!tasks/
+tasks/*
+!tasks/db-backup/
+!tasks/db-backup/**
+monitor-app/src-tauri/target/
+monitor-app/src-tauri/gen/

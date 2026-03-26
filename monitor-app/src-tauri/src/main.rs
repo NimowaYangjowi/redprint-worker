@@ -104,7 +104,13 @@ fn main() {
                         match pool_opt {
                             Some(pool) => {
                                 let jobs = db::query_job_stats(&pool).await.ok();
-                                let backup = db::query_backup_stats(&pool).await.ok();
+                                let backup = match db::query_backup_stats(&pool).await {
+                                    Ok(b) => Some(b),
+                                    Err(e) => {
+                                        eprintln!("[Monitor] Backup query error: {e}");
+                                        None
+                                    }
+                                };
                                 (jobs, backup)
                             }
                             None => (None, None),

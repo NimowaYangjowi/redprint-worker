@@ -6,7 +6,7 @@
 import { readFileSync, unlinkSync, existsSync } from 'node:fs';
 
 import { uploadToR2 } from '../storage/r2-client';
-import { BACKUP_PREFIX, BACKUP_FILE_PREFIX, MAX_BACKUP_SIZE_BYTES } from './constants';
+import { BACKUP_PREFIX, BACKUP_FILE_PREFIX, MAX_BACKUP_SIZE_BYTES, BACKUP_FORMAT_VERSION } from './constants';
 
 export interface BackupUploadResult {
   key: string;
@@ -54,7 +54,8 @@ export async function uploadBackup(localPath: string): Promise<BackupUploadResul
     contentType: 'application/gzip',
     metadata: {
       'backup-type': 'pg_dump',
-      'backup-format': 'plain-sql-gzip',
+      'backup-format': 'copy-format-gzip',
+      'backup-format-version': BACKUP_FORMAT_VERSION,
     },
   });
 

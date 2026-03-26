@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "start": "tsx scripts/transcode-worker.ts",
+    "export:bootstrap-schema": "tsx scripts/export-bootstrap-schema.ts",
+    "backup:rollout:preflight": "tsx scripts/backup-rollout-preflight.ts",
+    "backup:rollout:status": "tsx scripts/backup-rollout-status.ts",
+    "backup:rollout:smoke": "tsx scripts/backup-rollout-smoke.ts",
+    "backup:run-once": "tsx scripts/run-backup-once.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

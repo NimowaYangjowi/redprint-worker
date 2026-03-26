@@ -44,6 +44,18 @@ export const backupLogs = pgTable(
     /** Error message on failure */
     errorMessage: text('error_message'),
 
+    /** Backup format version: 'v2' for verified backups, null for legacy */
+    formatVersion: text('format_version'),
+
+    /** Verification status: pending | passed | failed | null (legacy) */
+    verificationStatus: text('verification_status'),
+
+    /** When verification completed */
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+
+    /** R2 key of the file used for restore verification */
+    verifiedFromR2Key: text('verified_from_r2_key'),
+
     /** When the backup started */
     startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
 

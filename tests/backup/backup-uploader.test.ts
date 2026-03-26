@@ -32,8 +32,8 @@ describe('backup-uploader', () => {
 
   it('uploads file to R2 with correct key format', async () => {
     mockUploadToR2.mockResolvedValue({
-      key: 'backups/redprint-db-2026-03-24-040000.sql.gz',
-      url: 'https://example.com/backups/redprint-db-2026-03-24-040000.sql.gz',
+      key: 'backups/v2/redprint-db-2026-03-24-040000.sql.gz',
+      url: 'https://example.com/backups/v2/redprint-db-2026-03-24-040000.sql.gz',
       size: 19,
     });
 
@@ -41,18 +41,22 @@ describe('backup-uploader', () => {
 
     expect(mockUploadToR2).toHaveBeenCalledWith(
       expect.objectContaining({
-        key: expect.stringMatching(/^backups\/redprint-db-\d{4}-\d{2}-\d{2}-\d{6}\.sql\.gz$/),
+        key: expect.stringMatching(/^backups\/v2\/redprint-db-\d{4}-\d{2}-\d{2}-\d{6}\.sql\.gz$/),
         contentType: 'application/gzip',
+        metadata: expect.objectContaining({
+          'backup-format-version': 'v2',
+          'backup-format': 'copy-format-gzip',
+        }),
       })
     );
-    expect(result.key).toContain('backups/redprint-db-');
+    expect(result.key).toContain('backups/v2/redprint-db-');
     expect(result.size).toBe(19);
   });
 
   it('deletes local file after successful upload', async () => {
     mockUploadToR2.mockResolvedValue({
-      key: 'backups/test.sql.gz',
-      url: 'https://example.com/backups/test.sql.gz',
+      key: 'backups/v2/test.sql.gz',
+      url: 'https://example.com/backups/v2/test.sql.gz',
       size: 19,
     });
 
@@ -66,8 +70,8 @@ describe('backup-uploader', () => {
     // so we test the error path by mocking. The real check reads the actual file.
     // For this test, we verify the function works with normal-sized files.
     mockUploadToR2.mockResolvedValue({
-      key: 'backups/test.sql.gz',
-      url: 'https://example.com/backups/test.sql.gz',
+      key: 'backups/v2/test.sql.gz',
+      url: 'https://example.com/backups/v2/test.sql.gz',
       size: 19,
     });
 

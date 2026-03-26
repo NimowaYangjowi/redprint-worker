@@ -1,15 +1,21 @@
 /**
- * Backup Scheduler
- * Orchestrates daily database backups using a setTimeout chain.
+ * Backup Scheduler – v2 Verified Backup
+ * Orchestrates daily database backups with remote restore verification.
  *
- * Schedule pattern:
- *   1. Calculate ms until next backup hour
- *   2. setTimeout for that duration
- *   3. Run backup (pg_dump → gzip → verify → upload → retention)
- *   4. Schedule next backup (repeat from step 1)
+ * Pipeline:
+ *   1. log start
+ *   2. generate local dump (v2 COPY format)
+ *   3. upload to R2 v2 path
+ *   4. verify by re-reading remote object into the dedicated verify DB
+ *   5. apply v2 retention
+ *   6. write success log only after verify passes
+ *
+ * Success definition:
+ *   `status='success'` means the remote object was downloaded again and
+ *   restored into the dedicated verify DB via `psql` without errors.
  *
  * Restart safety:
- *   On start, checks R2 for today's backup. If exists, skips to next day.
+ *   On start, checks R2 v2 prefix for today's backup. If exists, skips.
  *
  * Graceful shutdown:
  *   stop() cancels the pending timer. If a backup is in progress,
@@ -19,8 +25,14 @@
 import { isBackupEnabled, getBackupHourUTC, BACKUP_SHUTDOWN_TIMEOUT_MS } from './constants';
 import { runPgDump } from './pg-dump';
 import { uploadBackup } from './backup-uploader';
+import { verifyBackupFromR2 } from './backup-verify';
 import { applyRetention, todayBackupExists } from './retention';
-import { logBackupStart, logBackupSuccess, logBackupFailed } from './backup-logger';
+import {
+  logBackupStart,
+  logBackupUploadComplete,
+  logBackupSuccess,
+  logBackupFailed,
+} from './backup-logger';
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let backupInProgress = false;
@@ -38,20 +50,19 @@ export async function startBackupScheduler(): Promise<void> {
 
   stopped = false;
   const hour = getBackupHourUTC();
-  console.log(`[BACKUP] Scheduler starting (daily at ${String(hour).padStart(2, '0')}:00 UTC)`);
+  console.log(`[BACKUP] v2 scheduler starting (daily at ${String(hour).padStart(2, '0')}:00 UTC)`);
 
-  // Restart safety: check if today's backup already exists
+  // Restart safety: check if today's backup already exists in v2 prefix
   try {
     const exists = await todayBackupExists();
     if (exists) {
-      console.log('[BACKUP] Today\'s backup already exists in R2. Scheduling for tomorrow.');
+      console.log('[BACKUP] Today\'s v2 backup already exists in R2. Scheduling for tomorrow.');
       scheduleNext(true);
       return;
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[BACKUP] Failed to check existing backups: ${msg}`);
-    // Continue anyway — schedule the backup
   }
 
   scheduleNext(false);
@@ -74,7 +85,6 @@ export async function stopBackupScheduler(): Promise<void> {
     return;
   }
 
-  // Wait for running backup to finish
   console.log(`[BACKUP] Waiting for running backup to finish (max ${BACKUP_SHUTDOWN_TIMEOUT_MS / 1000}s)...`);
   const deadline = Date.now() + BACKUP_SHUTDOWN_TIMEOUT_MS;
   while (backupInProgress && Date.now() < deadline) {
@@ -104,7 +114,6 @@ function scheduleNext(skipToday: boolean): void {
     void executeBackup();
   }, delayMs);
 
-  // Prevent timer from keeping the process alive
   if (timer && typeof timer === 'object' && 'unref' in timer) {
     timer.unref();
   }
@@ -121,7 +130,6 @@ function msUntilNextBackup(skipToday: boolean): number {
   target.setUTCHours(hour, 0, 0, 0);
 
   if (skipToday || target.getTime() <= now.getTime()) {
-    // Target is in the past or we're skipping today — move to tomorrow
     target.setUTCDate(target.getUTCDate() + 1);
   }
 
@@ -129,17 +137,18 @@ function msUntilNextBackup(skipToday: boolean): number {
 }
 
 /**
- * Execute the full backup pipeline:
- * pg_dump → gzip → verify → upload → retention
+ * Execute the full v2 backup pipeline:
+ * dump → upload → verify from remote → retention → success log
+ *
+ * Success is only written when remote restore verification passes.
  */
-async function executeBackup(): Promise<void> {
+async function executeBackup(options: { skipRetention?: boolean } = {}): Promise<void> {
   if (stopped) return;
 
   backupInProgress = true;
   const startTime = Date.now();
-  console.log('[BACKUP] Starting backup...');
+  console.log('[BACKUP] Starting v2 verified backup...');
 
-  // Log start to DB (best-effort — don't block backup if logging fails)
   let logId: string | null = null;
   try {
     logId = await logBackupStart();
@@ -148,41 +157,74 @@ async function executeBackup(): Promise<void> {
   }
 
   try {
-    // Step 1: pg_dump → gzip → temp file
-    console.log('[BACKUP] Running pg_dump...');
+    // Step 1: Generate local dump (v2 COPY format)
+    console.log('[BACKUP] Running pg_dump (v2 COPY format)...');
     const tempPath = await runPgDump();
 
-    // Step 2: Upload to R2
-    console.log('[BACKUP] Uploading to R2...');
+    // Step 2: Upload to R2 v2 path
+    console.log('[BACKUP] Uploading to R2 (v2 path)...');
     const { key, size } = await uploadBackup(tempPath);
     const sizeMB = (size / 1024 / 1024).toFixed(1);
     console.log(`[BACKUP] Uploaded: ${key} (${sizeMB} MB)`);
 
-    // Step 3: Apply retention policy
-    let retentionKept: number | undefined;
-    let retentionDeleted: number | undefined;
-    console.log('[BACKUP] Applying retention policy...');
-    try {
-      const retention = await applyRetention();
-      retentionKept = retention.kept;
-      retentionDeleted = retention.deleted;
-      console.log(
-        `[BACKUP] Retention: ${retention.deleted} deleted, ${retention.kept} kept`
-      );
-    } catch (retErr) {
-      // Retention failure is non-critical — backup itself succeeded
-      const msg = retErr instanceof Error ? retErr.message : String(retErr);
-      console.error(`[BACKUP] Retention failed (backup is safe): ${msg}`);
-    }
-
-    const durationMs = Date.now() - startTime;
-    const elapsed = (durationMs / 1000).toFixed(1);
-    console.log(`[BACKUP] Backup completed in ${elapsed}s`);
-
-    // Log success to DB
     if (logId) {
       try {
-        await logBackupSuccess(logId, { r2Key: key, fileSize: size, durationMs, retentionKept, retentionDeleted });
+        await logBackupUploadComplete(logId, key);
+      } catch (logErr) {
+        console.error('[BACKUP] Failed to log upload completion:', logErr);
+      }
+    }
+
+    // Step 3: Verify by re-reading the remote object into the dedicated verify DB
+    console.log('[BACKUP] Verifying backup from remote R2 object...');
+    const verifyResult = await verifyBackupFromR2(key);
+
+    if (!verifyResult.passed) {
+      throw new Error(
+        `Remote restore verification failed: ${verifyResult.error ?? 'unknown error'}`
+      );
+    }
+
+    const verifyElapsed = (verifyResult.durationMs / 1000).toFixed(1);
+    console.log(
+      `[BACKUP] Verification passed (verify DB: ${verifyResult.verifyDbName}, ${verifyElapsed}s)`
+    );
+
+    // Step 4: Apply v2 retention policy unless this is a rollout smoke run
+    let retentionKept: number | undefined;
+    let retentionDeleted: number | undefined;
+    if (options.skipRetention) {
+      console.log('[BACKUP] Skipping retention for this manual rollout smoke run');
+    } else {
+      console.log('[BACKUP] Applying retention policy...');
+      try {
+        const retention = await applyRetention();
+        retentionKept = retention.kept;
+        retentionDeleted = retention.deleted;
+        console.log(
+          `[BACKUP] Retention: ${retention.deleted} deleted, ${retention.kept} kept`
+        );
+      } catch (retErr) {
+        const msg = retErr instanceof Error ? retErr.message : String(retErr);
+        console.error(`[BACKUP] Retention failed (backup is safe): ${msg}`);
+      }
+    }
+
+    // Step 5: Write success log — only after verification passed
+    const durationMs = Date.now() - startTime;
+    const elapsed = (durationMs / 1000).toFixed(1);
+    console.log(`[BACKUP] Verified backup completed in ${elapsed}s`);
+
+    if (logId) {
+      try {
+        await logBackupSuccess(logId, {
+          r2Key: key,
+          fileSize: size,
+          durationMs,
+          retentionKept,
+          retentionDeleted,
+          verifiedFromR2Key: key,
+        });
       } catch (logErr) {
         console.error('[BACKUP] Failed to log backup success:', logErr);
       }
@@ -191,18 +233,18 @@ async function executeBackup(): Promise<void> {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[BACKUP] Backup failed: ${msg}`);
 
-    // Log failure to DB
+    // Determine if this was a verification failure
+    const verificationFailed = msg.includes('Remote restore verification failed');
+
     if (logId) {
       try {
-        await logBackupFailed(logId, msg, Date.now() - startTime);
+        await logBackupFailed(logId, msg, Date.now() - startTime, verificationFailed);
       } catch (logErr) {
         console.error('[BACKUP] Failed to log backup failure:', logErr);
       }
     }
   } finally {
     backupInProgress = false;
-
-    // Schedule next backup
     scheduleNext(true);
   }
 }

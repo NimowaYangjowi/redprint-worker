@@ -1,52 +1,81 @@
 # Redprint Worker
 
-Standalone worker that processes video transcode jobs and automated DB backups.
+레드프린트 워커는 두 가지를 담당합니다.
 
-## Setup
+- 트랜스코드 잡 처리
+- 자동 DB 백업 + restore verification
 
-1. Copy `.env.worker.example` to `.env.worker` and fill in credentials
-2. Build and start:
+쉽게 말해:
+- 영상 작업을 처리하는 백그라운드 기계이면서
+- 백업 상자를 만들고, 다시 열어보는 백업 기계이기도 합니다.
+
+## Quick Start
+
+1. `.env.worker.example`을 `.env.worker`로 복사
+2. 필요한 환경변수 채우기
+3. 실행:
 
 ```bash
 docker compose up -d --build
 ```
 
-3. Check logs:
+로그 보기:
 
 ```bash
 docker logs -f redprint-worker
 ```
 
-4. Stop:
+중지:
 
 ```bash
 docker compose down
 ```
 
-## Update
+## Common Commands
 
-After receiving new source files:
+워커 실행:
 
 ```bash
-docker compose up -d --build
+npm start
 ```
 
-## Dry-Run Testing
+bootstrap schema 재생성:
 
-Set `TRANSCODE_DRY_RUN=true` in `.env.worker` to test queue flow
-without actual ffmpeg transcoding or R2 uploads.
+```bash
+npm run export:bootstrap-schema
+```
 
-## Monitor App (macOS 메뉴바)
+verify-backup rollout 준비 점검:
 
-`monitor-app/` 디렉토리에 Tauri 기반 macOS 메뉴바 모니터 앱이 포함되어 있다.
+```bash
+npm run backup:rollout:preflight
+```
 
-기능:
-- Docker 컨테이너 상태 모니터링 (5초 폴링)
-- DB에서 오늘 완료/실패 잡 통계 조회
-- Docker compose 시작/중지 제어
-- Redprint 레포 Git Auto-Pull (dev/main, 5분 폴링)
+verify-backup rollout smoke:
 
-### 빌드
+```bash
+npm run backup:rollout:smoke
+```
+
+## Docs
+
+짧게 시작하고, 자세한 내용은 `docs/`를 봅니다.
+
+- 문서 입구: [docs/README.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/README.md)
+- 전체 구조: [docs/ARCHITECTURE.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/ARCHITECTURE.md)
+- Railway verify DB 운영: [docs/backup/railway-verify-db.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/backup/railway-verify-db.md)
+- schema 변경 시 verify DB 운영: [docs/backup/verify-db-schema-ops.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/backup/verify-db-schema-ops.md)
+
+## Monitor App
+
+`monitor-app/`은 macOS 메뉴바 상태판입니다.
+
+사용자가 보는 것:
+- 워커가 살아 있는지
+- 오늘 완료/실패 잡 수
+- 메뉴바 백업 상태 카드
+
+빌드:
 
 ```bash
 cd monitor-app
@@ -54,27 +83,14 @@ npm install
 npm run build
 ```
 
-빌드 결과: `src-tauri/target/release/bundle/macos/Transcode Monitor.app`
-
-### 개발
+개발:
 
 ```bash
 cd monitor-app
 npm run dev
 ```
 
-### 구조
-
-```
-monitor-app/
-├── src/index.html              # 프론트엔드 (순수 HTML/CSS/JS)
-└── src-tauri/src/
-    ├── main.rs                 # 앱 초기화, 폴링 루프
-    ├── config.rs               # 설정 (.env.worker, config.json)
-    ├── docker.rs               # Docker 컨테이너 관리
-    ├── db.rs                   # PostgreSQL 잡 통계
-    ├── git.rs                  # Git Auto-Pull
-    └── tray.rs                 # 시스템 트레이 + 팝업
-```
-
-> `menubar-app/`은 이전 Electron 버전으로, `monitor-app/`(Tauri)으로 대체되었다.
+참고:
+- `monitor-app/`이 현재 유지보수 대상입니다
+- `menubar-app/`은 이전 Electron 버전 로컬 보관본입니다
+- 현재 백업/verify DB 관련 실행 계획은 [tasks/db-backup/README.md](/Users/jiwoo/Downloads/projects/transcode-worker/tasks/db-backup/README.md)에도 정리돼 있습니다

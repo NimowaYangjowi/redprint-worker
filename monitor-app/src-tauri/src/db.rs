@@ -71,8 +71,12 @@ pub struct BackupEntry {
     pub retention_kept: Option<i32>,
     pub retention_deleted: Option<i32>,
     pub error_message: Option<String>,
-    pub started_at: chrono::NaiveDateTime,
-    pub completed_at: Option<chrono::NaiveDateTime>,
+    pub format_version: Option<String>,
+    pub verification_status: Option<String>,
+    pub verified_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub verified_from_r2_key: Option<String>,
+    pub started_at: chrono::DateTime<chrono::Utc>,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Total count of successful backups.
@@ -81,15 +85,55 @@ struct BackupCount {
     total: i32,
 }
 
+const BACKUP_PHASE3_REQUIRED_COLUMNS: [&str; 4] = [
+    "format_version",
+    "verification_status",
+    "verified_at",
+    "verified_from_r2_key",
+];
+
+const BACKUP_SELECT_PHASE3_COLUMNS: &str =
+    "status, r2_key, file_size, duration_ms, \
+     retention_kept, retention_deleted, error_message, \
+     format_version, verification_status, verified_at, verified_from_r2_key, \
+     started_at, completed_at";
+
+const BACKUP_SELECT_LEGACY_SAFE_COLUMNS: &str =
+    "status, r2_key, file_size, duration_ms, \
+     retention_kept, retention_deleted, error_message, \
+     NULL::text AS format_version, \
+     NULL::text AS verification_status, \
+     NULL::timestamptz AS verified_at, \
+     NULL::text AS verified_from_r2_key, \
+     started_at, completed_at";
+
 /// Backup dashboard data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupStats {
     /// Most recent backup entry (if any)
     pub latest: Option<BackupEntry>,
+    /// Most recent restore-verified backup entry (if any)
+    pub latest_verified: Option<BackupEntry>,
     /// Total successful backups currently retained
     pub total_backups: i32,
     /// Recent backup history (up to 7 entries)
     pub history: Vec<BackupEntry>,
+}
+
+async fn backup_logs_has_phase3_columns(pool: &PgPool) -> Result<bool, String> {
+    let columns: Vec<String> = sqlx::query_scalar(
+        "SELECT column_name \
+         FROM information_schema.columns \
+         WHERE table_schema = 'public' \
+           AND table_name = 'backup_logs' \
+           AND column_name = ANY($1)",
+    )
+    .bind(&BACKUP_PHASE3_REQUIRED_COLUMNS)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| format!("Failed to inspect backup_logs columns: {e}"))?;
+
+    Ok(columns.len() == BACKUP_PHASE3_REQUIRED_COLUMNS.len())
 }
 
 /// Query backup stats for the monitoring dashboard.
@@ -105,47 +149,83 @@ pub async fn query_backup_stats(pool: &PgPool) -> Result<BackupStats, String> {
     if !table_exists {
         return Ok(BackupStats {
             latest: None,
+            latest_verified: None,
             total_backups: 0,
             history: vec![],
         });
     }
 
+    let has_phase3_columns = backup_logs_has_phase3_columns(pool).await?;
+
     // Most recent backup
-    let latest: Option<BackupEntry> = sqlx::query_as(
-        "SELECT status, r2_key, file_size, duration_ms, \
-                retention_kept, retention_deleted, error_message, \
-                started_at, completed_at \
-         FROM backup_logs \
-         ORDER BY started_at DESC LIMIT 1",
-    )
+    let latest_query = if has_phase3_columns {
+        format!(
+            "SELECT {} FROM backup_logs ORDER BY started_at DESC LIMIT 1",
+            BACKUP_SELECT_PHASE3_COLUMNS
+        )
+    } else {
+        format!(
+            "SELECT {} FROM backup_logs ORDER BY started_at DESC LIMIT 1",
+            BACKUP_SELECT_LEGACY_SAFE_COLUMNS
+        )
+    };
+    let latest: Option<BackupEntry> = sqlx::query_as(&latest_query)
     .fetch_optional(pool)
     .await
     .map_err(|e| format!("Failed to query latest backup: {e}"))?;
 
-    // Total successful backups
-    let count: BackupCount = sqlx::query_as(
-        "SELECT COUNT(*)::int AS total \
-         FROM backup_logs \
-         WHERE status = 'success'",
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| format!("Failed to query backup count: {e}"))?;
+    // Most recent restore-verified backup
+    let latest_verified: Option<BackupEntry> = if has_phase3_columns {
+        let query = format!(
+            "SELECT {} \
+             FROM backup_logs \
+             WHERE status = 'success' AND verification_status = 'passed' \
+             ORDER BY started_at DESC LIMIT 1",
+            BACKUP_SELECT_PHASE3_COLUMNS
+        );
+
+        sqlx::query_as(&query)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| format!("Failed to query latest verified backup: {e}"))?
+    } else {
+        None
+    };
+
+    // Total restore-verified backups
+    let count: BackupCount = if has_phase3_columns {
+        sqlx::query_as(
+            "SELECT COUNT(*)::int AS total \
+             FROM backup_logs \
+             WHERE status = 'success' AND verification_status = 'passed'",
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(|e| format!("Failed to query backup count: {e}"))?
+    } else {
+        BackupCount { total: 0 }
+    };
 
     // Recent history (last 7)
-    let history: Vec<BackupEntry> = sqlx::query_as(
-        "SELECT status, r2_key, file_size, duration_ms, \
-                retention_kept, retention_deleted, error_message, \
-                started_at, completed_at \
-         FROM backup_logs \
-         ORDER BY started_at DESC LIMIT 7",
-    )
+    let history_query = if has_phase3_columns {
+        format!(
+            "SELECT {} FROM backup_logs ORDER BY started_at DESC LIMIT 7",
+            BACKUP_SELECT_PHASE3_COLUMNS
+        )
+    } else {
+        format!(
+            "SELECT {} FROM backup_logs ORDER BY started_at DESC LIMIT 7",
+            BACKUP_SELECT_LEGACY_SAFE_COLUMNS
+        )
+    };
+    let history: Vec<BackupEntry> = sqlx::query_as(&history_query)
     .fetch_all(pool)
     .await
     .map_err(|e| format!("Failed to query backup history: {e}"))?;
 
     Ok(BackupStats {
         latest,
+        latest_verified,
         total_backups: count.total,
         history,
     })
