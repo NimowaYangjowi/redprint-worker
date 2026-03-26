@@ -70,7 +70,7 @@ fn read_config_json() -> serde_json::Value {
     }
 }
 
-/// Resolve the git project directory using the same logic as the Electron app:
+/// Resolve the git project directory using the monitor app's compatibility lookup:
 /// 1. Check config.json for gitProjectDir
 /// 2. Check for sibling Redprint/.git directory
 /// 3. Fallback to ~/Downloads/projects/Redprint

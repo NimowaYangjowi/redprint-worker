@@ -7,7 +7,6 @@ dist/
 .DS_Store
 /tmp/
 .claude/
-menubar-app/
 tasks/
 !tasks/
 tasks/*

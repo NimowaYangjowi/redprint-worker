@@ -1,7 +1,7 @@
 /**
  * Transcode Worker Entry Point
  * Run: tsx scripts/transcode-worker.ts
- * Or via Docker: docker compose -f docker-compose.worker.yml up
+ * Or via Docker: docker compose up -d --build
  *
  * Loads environment, validates config, registers signal handlers,
  * then starts the worker loop.

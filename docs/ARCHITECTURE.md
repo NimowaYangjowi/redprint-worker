@@ -18,7 +18,35 @@
 2. 백업 파이프라인
    - PostgreSQL 백업 파일을 만들고, R2에 올리고, verify DB라는 연습장 DB에 다시 부어보는 백업 기계
 3. 메뉴바 모니터 앱
-   - macOS 메뉴바에서 워커 상태, 잡 통계, 백업 상태 카드를 보여주는 상태판
+   - macOS 메뉴바에서 워커 상태, 잡 통계, 백업 상태 카드, Git Auto-Pull 상태를 보여주는 상태판
+
+## Repo Map
+
+주요 디렉토리는 이렇게 나뉩니다.
+
+- `src/lib/transcode/`
+  트랜스코드 워커 핵심 로직
+- `src/lib/backup/`
+  백업 생성, 업로드, 복원 검증 로직
+- `src/db/`
+  Drizzle schema와 DB 연결 계층
+- `scripts/`
+  운영 helper와 진입 스크립트
+- `monitor-app/`
+  macOS 메뉴바 상태판
+- `ops/`
+  launchd 등록/해제 스크립트
+- `tests/backup/`
+  백업/rollout helper 테스트
+- `docs/`
+  현재 읽는 운영/구조 문서
+
+쉽게 말해:
+- `src/`는 실제 기계 본체
+- `scripts/`는 출발 버튼들
+- `monitor-app/`은 상태판
+- `ops/`는 맥 자동 실행 스위치
+- `docs/`는 설명서 선반입니다.
 
 ## High-Level Components
 
@@ -32,8 +60,12 @@
   백업 스케줄러와 백업 실행 파이프라인
 - [backup-verify.ts](/Users/jiwoo/Downloads/projects/transcode-worker/src/lib/backup/backup-verify.ts)
   verify DB 복원 검증 엔진
+- [backup-rollout-status.ts](/Users/jiwoo/Downloads/projects/transcode-worker/scripts/backup-rollout-status.ts)
+  운영자가 터미널에서 읽는 백업 상태 요약기
 - [index.html](/Users/jiwoo/Downloads/projects/transcode-worker/monitor-app/src/index.html)
-  메뉴바 백업 상태 카드 화면
+  메뉴바 상태판 화면
+- [main.rs](/Users/jiwoo/Downloads/projects/transcode-worker/monitor-app/src-tauri/src/main.rs)
+  메뉴바 앱 초기화와 5초/5분 폴링 루프
 - [db.rs](/Users/jiwoo/Downloads/projects/transcode-worker/monitor-app/src-tauri/src/db.rs)
   메뉴바 앱이 읽는 PostgreSQL 조회 계층
 
@@ -134,6 +166,7 @@ verify DB는 데이터는 매일 비우지만, 스키마는 메인 DB와 계속 
 - 워커가 살아 있는지
 - 오늘 완료/실패한 잡 수
 - 최신 백업이 `running / verifying / verified / legacy / failed` 중 무엇인지
+- Git Auto-Pull 대상 저장소가 최신인지
 
 중요한 UI 계약:
 - 초록불은 restore-verified일 때만 켜짐
@@ -144,6 +177,12 @@ verify DB는 데이터는 매일 비우지만, 스키마는 메인 DB와 계속 
 - "상자가 창고에 있다"와
 - "그 상자가 실제로 다시 살아난다"를
 - 다른 표시로 보여줍니다
+
+추가로:
+- Git 카드에서는 `dev`와 `main`이 최신인지, 자동 pull이 켜져 있는지, 수동 pull이 필요한지도 같이 보여줍니다
+
+상세 구조는 별도 문서:
+- [MONITOR_APP.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/MONITOR_APP.md)
 
 ## Important State Stores
 
@@ -161,6 +200,8 @@ verify DB는 데이터는 매일 비우지만, 스키마는 메인 DB와 계속 
 빠르게 찾아갈 문서:
 
 - 운영 입구: [docs/README.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/README.md)
+- 실행/런북: [OPERATIONS.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/OPERATIONS.md)
+- 메뉴바 상태판 구조: [MONITOR_APP.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/MONITOR_APP.md)
 - Railway verify DB 운영: [railway-verify-db.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/backup/railway-verify-db.md)
 - schema 변경 시 verify DB 운영: [verify-db-schema-ops.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/backup/verify-db-schema-ops.md)
 - 현재 구현 계약서: [phase-3-implementation-plan-verified-backup.md](/Users/jiwoo/Downloads/projects/transcode-worker/tasks/db-backup/phase-3-implementation-plan-verified-backup.md)

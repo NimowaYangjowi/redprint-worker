@@ -1,13 +1,15 @@
 # Redprint Worker
 
-레드프린트 워커는 두 가지를 담당합니다.
+레드프린트 워커는 세 가지를 함께 담고 있는 저장소입니다.
 
-- 트랜스코드 잡 처리
-- 자동 DB 백업 + restore verification
+- 트랜스코드 잡 처리 워커
+- 자동 DB 백업 + restore verification 파이프라인
+- macOS 메뉴바 상태판
 
 쉽게 말해:
-- 영상 작업을 처리하는 백그라운드 기계이면서
-- 백업 상자를 만들고, 다시 열어보는 백업 기계이기도 합니다.
+- 영상 작업을 처리하는 백그라운드 기계가 있고
+- 백업 상자를 만들고 다시 열어보는 백업 기계가 있고
+- 운영자가 메뉴바에서 상태를 보는 작은 상태판도 같이 있습니다.
 
 ## Quick Start
 
@@ -57,12 +59,14 @@ verify-backup rollout smoke:
 npm run backup:rollout:smoke
 ```
 
-## Docs
+## Read Next
 
-짧게 시작하고, 자세한 내용은 `docs/`를 봅니다.
+루트 README는 얇은 입구만 맡고, 자세한 설명은 `docs/`에 둡니다.
 
 - 문서 입구: [docs/README.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/README.md)
-- 전체 구조: [docs/ARCHITECTURE.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/ARCHITECTURE.md)
+- 전체 큰 지도: [docs/ARCHITECTURE.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/ARCHITECTURE.md)
+- 실행/운영 런북: [docs/OPERATIONS.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/OPERATIONS.md)
+- 메뉴바 상태판 구조: [docs/MONITOR_APP.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/MONITOR_APP.md)
 - Railway verify DB 운영: [docs/backup/railway-verify-db.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/backup/railway-verify-db.md)
 - schema 변경 시 verify DB 운영: [docs/backup/verify-db-schema-ops.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/backup/verify-db-schema-ops.md)
 
@@ -74,23 +78,9 @@ npm run backup:rollout:smoke
 - 워커가 살아 있는지
 - 오늘 완료/실패 잡 수
 - 메뉴바 백업 상태 카드
-
-빌드:
-
-```bash
-cd monitor-app
-npm install
-npm run build
-```
-
-개발:
-
-```bash
-cd monitor-app
-npm run dev
-```
+- Git Auto-Pull 상태 카드
 
 참고:
-- `monitor-app/`이 현재 유지보수 대상입니다
-- `menubar-app/`은 이전 Electron 버전 로컬 보관본입니다
+- `monitor-app/`이 현재 유지보수 대상이자 유일한 데스크톱 메뉴바 앱입니다
+- 개발/빌드/데이터 흐름은 [docs/MONITOR_APP.md](/Users/jiwoo/Downloads/projects/transcode-worker/docs/MONITOR_APP.md)에서 설명합니다
 - 현재 백업/verify DB 관련 실행 계획은 [tasks/db-backup/README.md](/Users/jiwoo/Downloads/projects/transcode-worker/tasks/db-backup/README.md)에도 정리돼 있습니다

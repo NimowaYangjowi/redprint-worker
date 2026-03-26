@@ -46,4 +46,4 @@ launchctl unload "$PLIST_PATH" >/dev/null 2>&1 || true
 launchctl load "$PLIST_PATH"
 
 echo "Installed and loaded: $PLIST_PATH"
-echo "Check worker status with: docker ps | grep redprint-transcode-worker"
+echo "Check worker status with: docker ps | grep redprint-worker"

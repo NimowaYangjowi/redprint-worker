@@ -131,7 +131,7 @@ fn sync_branch(
 // ─── Poll logic ─────────────────────────────────────────────────────────────
 
 /// Performs one polling cycle: fetch, compare, and sync branches.
-/// Mirrors the `pollGit()` function from the Electron implementation.
+/// Keeps the desktop monitor app's branch sync behavior consistent across builds.
 pub fn poll_git(repo_dir: &Path, branches: &[&str], git_status: &Mutex<GitStatus>) {
     // Check if enabled (lock briefly, then release)
     {

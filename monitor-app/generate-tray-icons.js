@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// 기존 Electron menubar-app/src/main.js의 아이콘 생성 로직을 재사용하여
-// Tauri용 정적 PNG 파일을 생성한다.
+// 메뉴바 상태 아이콘을 Tauri용 정적 PNG 파일로 생성한다.
 
 const zlib = require('node:zlib');
 const fs = require('node:fs');
