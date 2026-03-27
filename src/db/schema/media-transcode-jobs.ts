@@ -16,7 +16,7 @@ import {
 import { assetMedia } from './asset-media';
 
 /** Job type enum values */
-export const jobTypeValues = ['video_mp4', 'video_hevc'] as const;
+export const jobTypeValues = ['video_mp4'] as const;
 export type JobType = (typeof jobTypeValues)[number];
 
 /** Job status enum values */
@@ -35,7 +35,7 @@ export const mediaTranscodeJobs = pgTable(
       .notNull()
       .references(() => assetMedia.id, { onDelete: 'cascade' }),
 
-    /** Job type: video_mp4, video_hevc */
+    /** Job type: video_mp4 */
     jobType: text('job_type').notNull(),
 
     /** Job status: queued, processing, completed, failed, dead_letter */

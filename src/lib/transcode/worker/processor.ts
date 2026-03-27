@@ -29,15 +29,13 @@ export async function processJob(
   job: { id: string; mediaId: string; jobType: string },
   tempDir: string
 ): Promise<ProcessResult> {
-  if (isDryRun()) {
-    return processDryRun(job);
-  }
-
   switch (job.jobType) {
   case 'video_mp4':
-    return processVideoMp4(job, tempDir);
+    return isDryRun()
+      ? processDryRun(job)
+      : processVideoMp4(job, tempDir);
   case 'video_hevc':
-    throw new Error('video_hevc pipeline not yet implemented (Expansion)');
+    throw new Error('Unsupported job type: video_hevc (pipeline not implemented yet)');
   default:
     throw new Error(`Unknown job type: ${job.jobType}`);
   }
@@ -52,7 +50,7 @@ function processDryRun(
     variantR2Key: `variants/${job.mediaId}/dry-run.mp4`,
     variantR2Url: `https://dry-run.local/variants/${job.mediaId}/dry-run.mp4`,
     fileSize: 0,
-    format: 'mp4',
+    format: 'video/mp4',
     thumbnailR2Key: `variants/${job.mediaId}/thumbnail-first-frame.jpg`,
     thumbnailR2Url: `https://dry-run.local/variants/${job.mediaId}/thumbnail-first-frame.jpg`,
   };

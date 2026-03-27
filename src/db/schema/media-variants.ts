@@ -18,7 +18,7 @@ import {
 import { assetMedia } from './asset-media';
 
 /** Variant type enum values */
-export const variantTypeValues = ['video_mp4', 'video_hevc'] as const;
+export const variantTypeValues = ['video_mp4'] as const;
 export type VariantType = (typeof variantTypeValues)[number];
 
 export const mediaVariants = pgTable(
@@ -33,7 +33,7 @@ export const mediaVariants = pgTable(
       .notNull()
       .references(() => assetMedia.id, { onDelete: 'cascade' }),
 
-    /** Variant type: video_mp4, video_hevc */
+    /** Variant type: video_mp4 */
     variantType: text('variant_type').notNull(),
 
     /** R2 storage key (e.g., variants/{mediaId}/video_mp4.mp4) */

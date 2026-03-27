@@ -32,8 +32,11 @@ export async function start(): Promise<void> {
   // 2. Start periodic stale sweeper
   startSweeper();
 
-  // 2.5. Start backup scheduler
-  await startBackupScheduler();
+  // Start backup scheduling in the background so transcode intake is not blocked
+  void startBackupScheduler().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[WORKER] Backup scheduler failed to start: ${message}`);
+  });
 
   // 3. Main loop
   console.log('[WORKER] Entering main loop');

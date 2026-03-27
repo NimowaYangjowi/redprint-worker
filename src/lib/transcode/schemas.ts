@@ -6,11 +6,11 @@
 import { z } from 'zod';
 
 /** Valid job types for transcoding */
-export const jobTypeSchema = z.enum(['video_mp4', 'video_hevc']);
+export const jobTypeSchema = z.enum(['video_mp4']);
 export type JobTypeInput = z.infer<typeof jobTypeSchema>;
 
 /** Valid variant types */
-export const variantTypeSchema = z.enum(['video_mp4', 'video_hevc']);
+export const variantTypeSchema = z.enum(['video_mp4']);
 export type VariantTypeInput = z.infer<typeof variantTypeSchema>;
 
 /** Transcode status for asset_media denormalized column */

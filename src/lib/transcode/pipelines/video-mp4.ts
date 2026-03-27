@@ -348,7 +348,7 @@ export async function processVideoMp4(
     thumbnailR2Key: thumbnailUpload?.r2Key,
     thumbnailR2Url: thumbnailUpload?.r2Url,
     fileSize: upload.fileSize,
-    format: 'mp4',
+    format: 'video/mp4',
     width,
     height,
     duration,
